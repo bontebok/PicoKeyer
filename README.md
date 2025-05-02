@@ -24,5 +24,5 @@ The simplest configuration is a straight key as only two wires are needed. The c
 ### Paddles
 Three wires are needed to connect a paddle key to the PicoKeyer. The common (ground) of the key should be wired to one of the Raspberry Pi Pico ground pins, while the other two contacts (left and right paddle) need to be wired to any GPIO pin. Take note of each GPIO pin number as you will need to set that pin in the settings.
 
-### Firmware Installation
+## Firmware Installation
 Head over to [Releases](https://github.com/bontebok/PicoKeyer/releases) and download the latest PicoKeyer.uf2 firmware. Plug in your Raspberry Pi Pico and open the RPI-RP2 drive. If the drive does not appear, hold down the Boot button on the Pi Pico before plugging it it. Copy the PicoKeyer.uf2 file to the RPI-RP2 drive. Once the firmware has finished copying, open the [PicoKeyer Browser App](https://bontebok.github.io/PicoKeyer/) in a browser that supports the Web MIDI API to configure your PicoKeyer.
