@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>PicoKeyer</title>
+    <meta name="description" content="Raspberry Pi Pico USB MIDI CW (morse code) keyer">
+    <!-- Pico.css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <style>
+        /* Set modal width to be noticeably wider than default (~400–500px) */
+        dialog#settings-modal {
+            width: 90%;
+            max-width: 700px;
+            margin: auto;
+            padding: 0;
+        }
+
+        dialog#settings-modal article {
+            max-width: 80%;
+            margin: 0;
+            padding: var(--pico-spacing);
+        }
+
+        .button-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="container">
+        <hgroup>
+            <h1>PicoKeyer</h1>
+            <p>Raspberry Pi Pico USB MIDI CW (morse code) keyer</p>
+        </hgroup>
+    </header>
+    <main id="main" class="container hidden">
+        <article>
+            <section id="canvassection">
+                <div class="canvas-container">
+                    <canvas id="morseCanvas"></canvas>
+                </div>
+            </section>
+            <section id="modal" class="button-row">
+                <label>
+                    <input id="togglesound" name="audio" type="checkbox" role="switch" />
+                    Enable sound
+                </label>                <button data-target="settings-modal" onclick="toggleModal(event)">
+                    <i data-feather="settings"></i> Settings
+                </button>
+            </section>
+        </article>
+    </main>
+    <dialog id="settings-modal">
+        <article>
+            <header>
+                <button aria-label="Close" rel="prev" data-target="settings-modal"
+                    onclick="toggleModal(event)"></button>
+                <h3>Settings</h3>
+            </header>
+            <table>
+                <tr>
+                    <td><label for="keyMode">Key Mode</label></td>
+                    <td>
+                        <select id="keyMode" onchange="keyModeChange()" required>
+                            <option value="0">None (choose one)</option>
+                            <option value="1">Straight Key</option>
+                            <option value="2">Paddle Key</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr data-group="paddles" class="hidden">
+                    <td><label for="wpm">Words Per Minute (0.01–100.00)</label></td>
+                    <td><input type="number" id="wpm" step="0.01" min="0.01" max="100.00" value="25.00" required>
+                    </td>
+                </tr>
+                <tr data-group="paddles" class="hidden">
+                    <td><label for="ditPaddle">Dit Paddle GPIO Pin (0–29)</label></td>
+                    <td><input type="number" id="ditPaddle" min="0" max="29" value="1" required></td>
+                </tr>
+                <tr data-group="paddles" class="hidden">
+                    <td><label for="dahPaddle">Dah Paddle GPIO Pin (0–29)</label></td>
+                    <td><input type="number" id="dahPaddle" min="0" max="29" value="2" required></td>
+                </tr>
+                <tr data-group="straightkey" class="hidden">
+                    <td><label for="straightKey">Straight Key GPIO Pin (0–29)</label></td>
+                    <td><input type="number" id="straightKey" min="0" max="29" value="3" required></td>
+                </tr>
+                <tr data-group="paddles straightkey" class="hidden">
+                    <td><label for="pinMode">GPIO Pin Mode</label></td>
+                    <td>
+                        <select id="pinMode" required>
+                            <option value="0">Input (No pull up/down)</option>
+                            <option value="2">Pull Up</option>
+                            <option value="3">Pull Down</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr data-group="paddles straightkey" class="hidden">
+                    <td><label for="ledMode">LED Mode</label></td>
+                    <td>
+                        <select id="ledMode" onchange="ledModeChange()" required>
+                            <option value="0">Disabled</option>
+                            <option value="1">Normal LED</option>
+                            <option value="2">RGB LED (NeoPixel / WS2812B)</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr data-group="normalled" class="hidden">
+                    <td><label for="normalLED">LED GPIO Pin (0–29)</label></td>
+                    <td><input type="number" id="normalLED" min="0" max="29" value="1" required></td>
+                </tr>
+                <tr data-group="rgbLED" class="hidden">
+                    <td><label for="rgbLED">RGB LED GPIO Pin (0–29)</label></td>
+                    <td><input type="number" id="rgbLED" min="0" max="29" value="1" required></td>
+                </tr>
+                <tr data-group="paddles straightkey" class="hidden">
+                    <td><label for="channel">MIDI Channel (0–127)</label></td>
+                    <td><input type="number" id="channel" min="0" max="127" value="1" required></td>
+                </tr>
+                <tr data-group="paddles straightkey" class="hidden">
+                    <td><label for="note">MIDI Note (0–127)</label></td>
+                    <td><input type="number" id="note" min="0" max="127" value="60" required></td>
+                </tr>
+                <tr data-group="paddles straightkey" class="hidden">
+                    <td><label for="volume">MIDI Volume (0–127)</label></td>
+                    <td><input type="number" id="volume" min="0" max="127" value="100" required></td>
+                </tr>
+            </table>
+            <footer>
+                <button autofocus data-target="settings-modal" class="secondary"
+                    onclick="toggleModal(event)">Close</button>
+                <button onclick="sendSetConfig()">Apply</button>
+                <button onclick="sendSaveConfig()">Save</button>
+                <button onclick="sendReboot()">Restart</button>
+            </footer>
+        </article>
+    </dialog>
+    <dialog id="notify-modal">
+        <article>
+            <header>
+                <button aria-label="Close" rel="prev" data-target="notify-modal" onclick="toggleModal(event)"></button>
+                <h3><i data-feather="info"></i> Notice</h3>
+            </header>
+            <p id="notify-text"></p>
+            <footer>
+                <button autofocus data-target="notify-modal" onclick="toggleModal(event)">
+                    Confirm
+                </button>
+            </footer>
+        </article>
+    </dialog>
+    <dialog id="error-modal">
+        <article>
+            <header>
+                <button aria-label="Close" rel="prev" data-target="error-modal" onclick="toggleModal(event)"></button>
+                <h3><i data-feather="alert-octagon"></i> Error</h3>
+            </header>
+            <p id="error-text"></p>
+            <footer>
+                <button autofocus data-target="error-modal" onclick="toggleModal(event)">
+                    Confirm
+                </button>
+            </footer>
+        </article>
+    </dialog>
+    <dialog id="firmware-modal">
+        <article>
+            <header>
+                <button aria-label="Close" rel="prev" data-target="firmware-modal"
+                    onclick="toggleModal(event)"></button>
+                <h3><i data-feather="download-cloud"></i> Firmware Update Required</h3>
+            </header>
+            <p id="firmware-text"></p>
+            <footer>
+                <button autofocus data-target="firmware-modal" class="secondary" onclick="toggleModal(event)">
+                    Cancel
+                </button>
+                <button onclick="sendUpdateFirmware()">Update Firmware</button>
+            </footer>
+        </article>
+    </dialog>
+    </main>
+    <footer class="container">
+        <small>&copy; 2025 <a href="https://github.com/bontebok">Bontebok</a>, GPL-3.0 license. •
+            <a href="https://github.com/bontebok/PicoKeyer">PicoKeyer Project</a></small>
+    </footer>
+    <script src="js/modal.js"></script>
+    <script src="js/cwdisplay.js"></script>
+    <script src="js/notes.js"></script>
+    <script src="js/midi.js"></script>
+    <script>
+        feather.replace();
+    </script>
+</body>
+
+</html>
