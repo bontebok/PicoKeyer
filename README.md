@@ -1,2 +1,2 @@
 # PicoKeyer
-An affordable CW keyer that uses a Raspberry Pi Pico to practice CW (morse code) using a desktop or mobile browser.
+PicoKeyer is a CW keyer for the Raspberry Pi Pico that allows you to practice CW (morse code) in Desktop or Mobile browser. PicoKeyer also provide a USB MIDI interface that enables you to use any MIDI app of your choice to record or listen to your CW.
