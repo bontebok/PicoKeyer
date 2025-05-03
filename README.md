@@ -1,5 +1,5 @@
 # PicoKeyer
-PicoKeyer is a CW keyer for the [Raspberry Pi Pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) that allows you to practice CW (morse code) in Desktop or Mobile browser that supports the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/MIDIAccess#browser_compatibility). PicoKeyer allows you to change the words per minutes rate, change the MIDI parameters, and switch between straight key and paddle operation all within your browser. The PicoKeyer also provides a USB MIDI interface that enables you to use any MIDI app of your choice to record or listen to your CW.
+PicoKeyer is a CW keyer for the [Raspberry Pi Pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) that let's you to practice CW (morse code) in Desktop or Mobile browser that supports the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/MIDIAccess#browser_compatibility). PicoKeyer has many configurable options, including the key type, words per minutes rate, LED/GPIO output, MIDI parameters; all within your browser. The PicoKeyer also provides a USB MIDI interface that enables you to use any MIDI app of your choice to record or listen to your CW.
 
 [PicoKeyer Browser App](https://bontebok.github.io/PicoKeyer/)
 
