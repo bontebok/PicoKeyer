@@ -16,7 +16,7 @@ Amazon Links (non-affiliate)
 * [Lsgoodcare 10PCS 3.5MM Female Headphone Stereo Jack](https://www.amazon.com/dp/B01CVGD4UI)
 
 ## Assembly
-The Pi Pico does come with breadboard-friendly header pins, so it technically is possible that you could mount it on a breadboard. However, I recommend that you solder the 3.5MM jack or a 3.5MM headphone-style cable directly to the Raspberry Pi Pico. This will give you the best result. If you have basic soldering skills, assembly should be a breeze.
+The Raspberry Pi Pico comes with breadboard-friendly header pins, so it technically is possible that you could assemble a PicoKeyer using breadboard. However, I recommend that you solder a 3.5MM jack or a 3.5MM headphone-style cable directly to the Pi Pico as this will give you the best result. If you have basic soldering skills, assembly should be a breeze.
 
 ![image](https://github.com/user-attachments/assets/49b68b3e-bc31-4526-b5e8-51509cce287b)
 
