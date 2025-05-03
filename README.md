@@ -55,3 +55,10 @@ Configure the values for the Words Per Minute, Dit Paddle GPIO, Dah Paddle GPIO.
 
 Once you are satisfied with your options, you can press Apply to test. If successful, pressing your key should produce a visual indicator in the black box. You can enable sound by clicking on the slider to hear a CW tone.
 
+## Waveshare RP2040-Zero Build
+My favorite Pi Pico is the Waveshare RP2040-Zero, it's a minature version of the full size Raspberry Pi Pico making it great for compact builds with no compromises. The RP2040-Zero comes standard with USB-C and an onboard addressable RGB LED. If purchased in bulk, the RP2040-Zero typically sell for about $2 each which makes them an ever better bargain than the Raspberry Pi Pico. For the PicoKeyer project, I have designed a custom case and included the STLs in the [waveshare_rp2040_case](https://github.com/bontebok/PicoKeyer/tree/main/waveshare_rp2040_case) directory.
+
+The assembly is pretty simple, just find two available GPIO pins (I recommend GPIO 3 and GPIO 29) and solder to a 3.5MM female jack (linked above). Before soldering, ensure that the jack is facing away from the USB-C port.
+
+![image](https://github.com/user-attachments/assets/0c8e4fe8-8ab2-4272-a072-bafd0d87d7db)
+
