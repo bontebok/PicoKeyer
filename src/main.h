@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // Firmware compatability
-#define VERSION 0x1
+#define VERSION 0x2
 
 // USB MIDI Config
 #define MANUFACTURER "bontebok"
@@ -14,18 +14,23 @@
 
 // Define default settings
 #define DEFAULT_WPM INTTOFLOATSCALAR * 12 // Fixed point value (WPM / INTTOFLOATSCALAR), allows for half/quarter timings if desired
-#define DEFAULT_KEYMODE keyMode_t::NONE
+#define DEFAULT_KEYMODE keyMode_t::KEY_NONE
 #define DEFAULT_PINMODE PinMode::INPUT_PULLUP
-#define DEFAULT_LEDMODE ledMode_t::DISABLED
-#define DEFAULT_DITPADDLE 3
-#define DEFAULT_DAHPADDLE 29
-#define DEFAULT_STRAIGHTKEY 3
-#define DEFAULT_NORMALDLED 0
-#define DEFAULT_RGBLED 16
-#define DEFAULT_NOTE 77
-#define DEFAULT_CHANNEL 1
-#define DEFAULT_VOLUME 40
-#define RGBPIXEL NEO_GRB + NEO_KHZ800
+#define DEFAULT_LEDMODE ledMode_t::LED_DISABLED
+#define DEFAULT_OUTPUTMODE gpioOutputMode_t::OUTPUT_DISABLED
+#define DEFAULT_GPIO_OUTPUT 14
+#define DEFAULT_GPIO_DITPADDLE 3
+#define DEFAULT_GPIO_DAHPADDLE 29
+#define DEFAULT_GPIO_STRAIGHT 3
+#define DEFAULT_GPIO_NORMALDLED 25
+#define DEFAULT_GPIO_RGBLED 16
+#define DEFAULT_MIDI_NOTE 77
+#define DEFAULT_MIDI_CHANNEL 1
+#define DEFAULT_MIDI_VOLUME 40
+
+// RGB LED Settings
+#define NEOPIXELTYPE NEO_GRB + NEO_KHZ800
+#define NEOPIXELBRIGHTNESS 127
 
 // SysEx Commands
 #define CMD_GET_VERSION 0
@@ -53,17 +58,25 @@
 // Key Modes
 enum keyMode_t : uint8_t
 {
-    NONE,
-    STRAIGHTKEY,
-    PADDLES
+    KEY_NONE,
+    KEY_STRAIGHT,
+    KEY_PADDLES
 };
 
 // LED Modes
 enum ledMode_t : uint8_t
 {
-    DISABLED,
-    NORMAL,
-    RGB
+    LED_DISABLED,
+    LED_NORMAL,
+    LED_RGB
+};
+
+// GPIO Output Mode
+enum gpioOutputMode_t : uint8_t
+{
+    OUTPUT_DISABLED,
+    OUTPUT_NORMAL,
+    OUTPUT_INVERSED
 };
 
 // GPIO pins
@@ -71,6 +84,7 @@ struct GPIO_t
 {
     uint8_t normalLED;
     uint8_t rgbLED;
+    uint8_t output;
     uint8_t ditPaddle;
     uint8_t dahPaddle;
     uint8_t straightKey;
@@ -94,6 +108,7 @@ struct Settings_t
     keyMode_t keyMode;
     PinMode pinMode;
     ledMode_t ledMode;
+    gpioOutputMode_t gpioOutputMode;
     uint8_t note;
     uint8_t channel;
     uint8_t volume;
@@ -113,6 +128,14 @@ enum OutputState_t : uint8_t
     IDLE,
     OUTPUT_ON,
     OUTPUT_OFF
+};
+
+// Next output
+enum NextElement_t : uint8_t
+{
+    NONE,
+    DIT,
+    DAH
 };
 
 #endif

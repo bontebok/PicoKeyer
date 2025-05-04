@@ -13,10 +13,10 @@ PaddleState_t straightKey = {false, false, 0};
 PaddleState_t ditPaddle = {false, false, 0};
 PaddleState_t dahPaddle = {false, false, 0};
 
-OutputState_t currentState = IDLE;
+OutputState_t currentState = OutputState_t::IDLE;
 uint32_t stateEndTime = 0;
 bool lastWasDit = false; // Tracks whether last output was a dit
-int nextElement = 0;     // 0: none, 1: dit, 2: dah
+NextElement_t nextElement = NextElement_t::NONE;
 
 // SysEx tokens
 const uint8_t sysex_header[] = SYSEX_HEADER;
@@ -24,12 +24,12 @@ const uint8_t sysex_footer = SYSEX_FOOTER;
 uint8_t sysExBuffer[MAX_SYSEX_LENGTH];
 uint8_t sysExLength = 0;
 
+// Adafruit_NeoPixel strip(1, 16, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel *strip = nullptr;
+
 // Control Surface variables
 USBMIDI_Interface midi;
 MIDIAddress address;
-
-// Onboard RGB LED
-Adafruit_NeoPixel pixel(NUM_LEDS, DEFAULT_RGBLED, NEO_GRB + NEO_KHZ800);
 
 /** Clear MIDI send and reset inputs for key GPIOs */
 void cleanUpKey()
@@ -42,11 +42,11 @@ void cleanUpKey()
   }
 
   // Cleanup current Key
-  if (settings.keyMode == keyMode_t::STRAIGHTKEY)
+  if (settings.keyMode == keyMode_t::KEY_STRAIGHT)
   {
     pinMode(settings.gpio.straightKey, INPUT); // Reset input pin
   }
-  else if (settings.keyMode == keyMode_t::PADDLES)
+  else if (settings.keyMode == keyMode_t::KEY_PADDLES)
   {
     // Default to normal Input for pins
     pinMode(settings.gpio.ditPaddle, INPUT); // Reset input pin
@@ -54,35 +54,51 @@ void cleanUpKey()
   }
 }
 
-/** Turn off LED and reset input or deactivate */
-void cleanUpLED()
+/** Reset GPIO output, if enabled */
+void cleanUpOutput()
 {
-  // Cleanup current LED
-  if (settings.ledMode == ledMode_t::NORMAL)
+  if (settings.gpioOutputMode == gpioOutputMode_t::OUTPUT_DISABLED)
+    return;
+
+  // Turn switch GPIO back to input
+  pinMode(settings.gpio.output, INPUT);
+}
+
+/** Configures the GPIO Output */
+void setupOutput()
+{
+  if (settings.gpioOutputMode != gpioOutputMode_t::OUTPUT_DISABLED)
   {
-    // Turn off onboard LED and reset pin
-    digitalWrite(settings.gpio.normalLED, LOW);
-    pinMode(settings.gpio.normalLED, INPUT);
+    PinStatus initialState = (settings.gpioOutputMode == gpioOutputMode_t::OUTPUT_NORMAL) ? LOW : HIGH;
+    pinMode(settings.gpio.output, OUTPUT);
+    digitalWrite(settings.gpio.normalLED, initialState); // Set initial output
   }
-  else if (settings.ledMode == ledMode_t::RGB)
-  {
-    // Turn off NeoPixel and stop output
-    pixel.clear(); // Set all pixels to off
-    pixel.show();  // Update to show off state
-  }
+}
+
+/** Turns the GPIO output on or off */
+void setOutput(bool state)
+{
+  if (settings.gpioOutputMode == gpioOutputMode_t::OUTPUT_DISABLED)
+    return;
+
+  bool setState = (settings.gpioOutputMode == gpioOutputMode_t::OUTPUT_NORMAL) ? state : !state;
+
+  PinStatus outputState = (setState) ? HIGH : LOW;
+
+  digitalWrite(settings.gpio.output, outputState);
 }
 
 /** Turns the LED on or off */
 void setLed(bool state)
 {
-  if (settings.ledMode == ledMode_t::NORMAL)
+  if (settings.ledMode == ledMode_t::LED_NORMAL)
   {
     digitalWrite(settings.gpio.normalLED, state ? HIGH : LOW); // On or off
   }
-  else if (settings.ledMode == ledMode_t::RGB)
+  else if (settings.ledMode == ledMode_t::LED_RGB)
   {
-    pixel.setPixelColor(0, state ? pixel.Color(255, 0, 0) : pixel.Color(0, 0, 0)); // Red or off
-    pixel.show();
+    strip->setPixelColor(0, state ? strip->Color(255, 0, 0) : strip->Color(0, 0, 0)); // Red or off
+    strip->show();
   }
 }
 
@@ -103,31 +119,53 @@ void setupMidi()
 /** Configures the key mode and GPIO pins */
 void setupKey()
 {
-  if (settings.keyMode == keyMode_t::STRAIGHTKEY)
+  if (settings.keyMode == keyMode_t::KEY_STRAIGHT)
   {
     pinMode(settings.gpio.straightKey, settings.pinMode);
   }
-  else if (settings.keyMode == keyMode_t::PADDLES)
+  else if (settings.keyMode == keyMode_t::KEY_PADDLES)
   {
     pinMode(settings.gpio.ditPaddle, settings.pinMode);
     pinMode(settings.gpio.dahPaddle, settings.pinMode);
   }
 }
 
+/** Turn off LED and reset input or deactivate */
+void cleanUpLED()
+{
+  // Cleanup current LED
+  if (settings.ledMode == ledMode_t::LED_NORMAL)
+  {
+    // Turn off onboard LED and reset pin
+    digitalWrite(settings.gpio.normalLED, LOW);
+    pinMode(settings.gpio.normalLED, INPUT);
+  }
+  else if (settings.ledMode == ledMode_t::LED_RGB)
+  {
+    strip->clear(); // Set all pixels to off
+    strip->show();  // Update to show off state
+  }
+}
+
 /** Configures the LED */
 void setupLed()
 {
-  if (settings.ledMode == ledMode_t::NORMAL)
+  if (settings.ledMode == ledMode_t::LED_NORMAL)
   {
     pinMode(settings.gpio.normalLED, OUTPUT);
     digitalWrite(settings.gpio.normalLED, LOW); // Start with LED off
   }
-  else if (settings.ledMode == ledMode_t::RGB)
+  else if (settings.ledMode == ledMode_t::LED_RGB)
   {
-    pixel.setPin(settings.gpio.rgbLED);
+    if (strip == nullptr)
+    {
+      strip = new Adafruit_NeoPixel(NUM_LEDS, settings.gpio.rgbLED, NEOPIXELTYPE);
+      strip->begin();
+    }
 
-    pixel.clear(); // Ensure off initially
-    pixel.show();
+    strip->clear(); // Set all pixels to off
+    strip->show();
+    strip->setBrightness(NEOPIXELBRIGHTNESS);
   }
 }
 
@@ -168,6 +206,8 @@ void encodeConfig(const Settings_t &settings, uint8_t *out, uint8_t &outSize)
   packer.addField(settings.keyMode & 0x3, 2);
   packer.addField(settings.pinMode & 0x3, 2);
   packer.addField(settings.ledMode & 0x3, 2);
+  packer.addField(settings.gpioOutputMode & 0x3, 2);
+  packer.addField(settings.gpio.output & 0x7F, 7);
   packer.addField(settings.gpio.normalLED & 0x7F, 7);
   packer.addField(settings.gpio.rgbLED & 0x7F, 7);
   packer.addField(settings.gpio.ditPaddle & 0x7F, 7);
@@ -190,6 +230,8 @@ void decodeConfig(Settings_t &settings, const uint8_t *input, uint8_t inputSize)
   settings.keyMode = (keyMode_t)packer.extractField(2);
   settings.pinMode = (PinMode)packer.extractField(2);
   settings.ledMode = (ledMode_t)packer.extractField(2);
+  settings.gpioOutputMode = (gpioOutputMode_t)packer.extractField(2);
+  settings.gpio.output = packer.extractField(7);
   settings.gpio.normalLED = packer.extractField(7);
   settings.gpio.rgbLED = packer.extractField(7);
   settings.gpio.ditPaddle = packer.extractField(7);
@@ -218,6 +260,24 @@ void sendConfig()
 
   // Send SysEx
   midi.sendSysEx(sysExBuffer, sysExLength, address.getCableNumber());
+}
+
+/** Applies received SysEx configuration */
+void setConfig(const uint8_t *data, unsigned int length)
+{
+  // Clear/clean up before applying
+  cleanUpKey();
+  cleanUpOutput();
+  cleanUpLED();
+
+  decodeConfig(settings, &data[sizeof(sysex_header) + 1], length - sizeof(sysex_header) - 1);
+
+  // Apply new config
+  setupKey();
+  setupOutput();
+  setupLed();
+  setupWPM();
+  setupMidi();
 }
 
 /** Handle received SysEx */
@@ -251,19 +311,12 @@ void handleSysEx(const uint8_t *data, unsigned int length)
   }
   case CMD_SET_CONFIG: // Config request
   {
-    cleanUpKey();
-    cleanUpLED();
-
-    decodeConfig(settings, &data[sizeof(sysex_header) + 1], length - sizeof(sysex_header) - 1);
-
-    setupKey();
-    setupLed();
-    setupWPM();
-    setupMidi();
+    setConfig(data, length);
     break;
   }
   case CMD_SAVE_CONFIG: // Config save request
   {
+    setConfig(data, length);
     save(settings);
     break;
   }
@@ -309,30 +362,33 @@ void updateKeyState(PaddleState_t &paddle, int pin)
 /** Starts sending a dit or dah by turning on the output and setting the duration. */
 void startIambicOutput(bool isDit)
 {
-  currentState = OUTPUT_ON;
+  currentState = OutputState_t::OUTPUT_ON;
 
   // MIDI.sendNoteOn(settings.note, settings.volume, settings.channel);
   midi.sendNoteOn(address, settings.volume);
 
   stateEndTime = millis() + (isDit ? settings.timings.dit : settings.timings.dah);
   lastWasDit = isDit;
-  nextElement = 0; // Reset nextElement when starting a new output
+  nextElement = NextElement_t::NONE; // Reset nextElement when starting a new output
 
+  setOutput(true);
   setLed(true);
 }
 
 /** Processes the straight key. */
 void processStraightKey()
 {
-  if (straightKey.currentState && currentState == IDLE)
+  if (straightKey.currentState && currentState == OutputState_t::IDLE)
   {
     midi.sendNoteOn(address, settings.volume);
+    setOutput(true);
     setLed(true);
     currentState = OutputState_t::OUTPUT_ON;
   }
-  if (!straightKey.currentState && currentState == OUTPUT_ON)
+  if (!straightKey.currentState && currentState == OutputState_t::OUTPUT_ON)
   {
     midi.sendNoteOff(address, settings.volume);
+    setOutput(false);
     setLed(false);
     currentState = OutputState_t::IDLE;
   }
@@ -341,15 +397,16 @@ void processStraightKey()
 /** Processes the iambic keyer state machine. */
 void processIambic()
 {
-  if (currentState == OUTPUT_ON)
+  if (currentState == OutputState_t::OUTPUT_ON)
   {
     if (millis() >= stateEndTime)
     {
       midi.sendNoteOff(address, settings.volume);
 
-      currentState = OUTPUT_OFF;
+      currentState = OutputState_t::OUTPUT_OFF;
       stateEndTime = millis() + settings.timings.gap;
 
+      setOutput(false);
       setLed(false);
     }
     else
@@ -357,23 +414,23 @@ void processIambic()
       // During output, check if the opposite paddle is pressed
       if (lastWasDit && dahPaddle.currentState)
       {
-        nextElement = 2; // Queue a dah next
+        nextElement = NextElement_t::DAH; // Queue a dah next
       }
       else if (!lastWasDit && ditPaddle.currentState)
       {
-        nextElement = 1; // Queue a dit next
+        nextElement = NextElement_t::DIT; // Queue a dit next
       }
     }
   }
-  else if (currentState == OUTPUT_OFF)
+  else if (currentState == OutputState_t::OUTPUT_OFF)
   {
     if (millis() >= stateEndTime)
     {
-      if (nextElement == 1)
+      if (nextElement == NextElement_t::DIT)
       {
         startIambicOutput(true); // Send queued dit
       }
-      else if (nextElement == 2)
+      else if (nextElement == NextElement_t::DAH)
       {
         startIambicOutput(false); // Send queued dah
       }
@@ -387,11 +444,11 @@ void processIambic()
       }
       else
       {
-        currentState = IDLE; // Nothing pressed, go idle
+        currentState = OutputState_t::IDLE; // Nothing pressed, go idle
       }
     }
   }
-  else if (currentState == IDLE)
+  else if (currentState == OutputState_t::IDLE)
   {
     if (ditPaddle.currentState)
     {
@@ -411,22 +468,26 @@ void setDefaultSettings()
   settings.keyMode = DEFAULT_KEYMODE;
   settings.pinMode = DEFAULT_PINMODE;
   settings.ledMode = DEFAULT_LEDMODE;
-  settings.gpio.normalLED = DEFAULT_NORMALDLED;
-  settings.gpio.rgbLED = DEFAULT_RGBLED;
-  settings.gpio.ditPaddle = DEFAULT_DITPADDLE;
-  settings.gpio.dahPaddle = DEFAULT_DAHPADDLE;
-  settings.gpio.straightKey = DEFAULT_STRAIGHTKEY;
+  settings.gpioOutputMode = DEFAULT_OUTPUTMODE;
+  settings.gpio.output = DEFAULT_GPIO_OUTPUT;
+  settings.gpio.normalLED = DEFAULT_GPIO_NORMALDLED;
+  settings.gpio.rgbLED = DEFAULT_GPIO_RGBLED;
+  settings.gpio.ditPaddle = DEFAULT_GPIO_DITPADDLE;
+  settings.gpio.dahPaddle = DEFAULT_GPIO_DAHPADDLE;
+  settings.gpio.straightKey = DEFAULT_GPIO_STRAIGHT;
   settings.wpm = DEFAULT_WPM;
-  settings.channel = DEFAULT_CHANNEL;
-  settings.note = DEFAULT_NOTE;
-  settings.volume = DEFAULT_VOLUME;
+  settings.channel = DEFAULT_MIDI_CHANNEL;
+  settings.note = DEFAULT_MIDI_NOTE;
+  settings.volume = DEFAULT_MIDI_VOLUME;
 }
 
 void setup()
 {
-  setDefaultSettings();
-
   //Serial.begin(115200);
+
+  setDefaultSettings();
+  init(settings);
+
   TinyUSBDevice.setManufacturerDescriptor(MANUFACTURER);
   TinyUSBDevice.setProductDescriptor(PRODUCT);
   while (!TinyUSBDevice.mounted())
@@ -435,25 +496,23 @@ void setup()
   midi.begin();
   midi.setCallbacks(callback);
 
-  init(settings);
-
   setupKey();
   setupLed();
-  setupWPM();
+  setupOutput();
   setupMidi();
+  setupWPM();
 }
 
 void loop()
 {
-  // MIDI.read();
   midi.update();
 
-  if (settings.keyMode == keyMode_t::STRAIGHTKEY)
+  if (settings.keyMode == keyMode_t::KEY_STRAIGHT)
   {
     updateKeyState(straightKey, settings.gpio.straightKey);
     processStraightKey();
   }
-  else if (settings.keyMode == keyMode_t::PADDLES)
+  else if (settings.keyMode == keyMode_t::KEY_PADDLES)
   {
     updateKeyState(ditPaddle, settings.gpio.ditPaddle);
     updateKeyState(dahPaddle, settings.gpio.dahPaddle);

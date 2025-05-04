@@ -124,18 +124,21 @@ function keyModeChange() {
             updateGroupVisibility('straightkey', false);
             updateGroupVisibility('normalled', false);
             updateGroupVisibility('rgbLED', false);
+            updateGroupVisibility('output', false);
             break;
         }
         case 1: {
             updateGroupVisibility('paddles', false);
             updateGroupVisibility('straightkey', true);
-            ledModeChange()
+            ledModeChange();
+            gpioOutputModeChange();
             break;
         }
         case 2: {
             updateGroupVisibility('paddles', true);
             updateGroupVisibility('straightkey', false);
-            ledModeChange()
+            ledModeChange();
+            gpioOutputModeChange();
             break;
         }
     }
@@ -161,6 +164,12 @@ function ledModeChange() {
             break;
         }
     }
+}
+
+function gpioOutputModeChange() {
+    const gpioOutputMode = parseInt(document.getElementById('gpioOutputMode').value);
+
+    updateGroupVisibility('output', gpioOutputMode != 0);
 }
 
 async function requestMidiAccess() {
@@ -207,6 +216,8 @@ function encodeConfig(config) {
     packer.addField(config.keyMode & 0x3, 2);
     packer.addField(config.pinMode & 0x3, 2);
     packer.addField(config.ledMode & 0x3, 2);
+    packer.addField(config.gpioOutputMode & 0x3, 2);
+    packer.addField(config.output & 0x7F, 7);
     packer.addField(config.normalLED & 0x7F, 7);
     packer.addField(config.rgbLED & 0x7F, 7);
     packer.addField(config.ditPaddle & 0x7F, 7);
@@ -228,6 +239,8 @@ function decodeConfig(data) {
         keyMode: packer.extractField(2),
         pinMode: packer.extractField(2),
         ledMode: packer.extractField(2),
+        gpioOutputMode: packer.extractField(2),
+        output: packer.extractField(7),
         normalLED: packer.extractField(7),
         rgbLED: packer.extractField(7),
         ditPaddle: packer.extractField(7),
@@ -250,17 +263,15 @@ function decodeVersion(data) {
     };
 }
 
-async function sendSetConfig() {
-    if (!midiOutput) {
-        errortext.textContent = errornodevice;
-        openModal(errormodal);
-        return;
-    }
+
+function buildConfig() {
     try {
         const config = {
             keyMode: parseInt(document.getElementById('keyMode').value),
             pinMode: parseInt(document.getElementById('pinMode').value),
             ledMode: parseInt(document.getElementById('ledMode').value),
+            gpioOutputMode: parseInt(document.getElementById('gpioOutputMode').value),
+            output: parseInt(document.getElementById('output').value),
             normalLED: parseInt(document.getElementById('normalLED').value),
             rgbLED: parseInt(document.getElementById('rgbLED').value),
             ditPaddle: parseInt(document.getElementById('ditPaddle').value),
@@ -272,8 +283,7 @@ async function sendSetConfig() {
             volume: parseInt(document.getElementById('volume').value)
         };
         const data = encodeConfig(config);
-        const sysex = [0xF0, 0x7D, 0x02, ...data, 0xF7]; // Use [0xF0, 0x00, 0x00, 0x7F, 0x01, ...data, 0xF7] for three-byte ID
-        midiOutput.send(sysex);
+        return data;
     } catch (error) {
         errortext.textContent = error;
         openModal(errormodal);
@@ -312,6 +322,22 @@ async function sendGetConfig() {
     }
 }
 
+async function sendSetConfig() {
+    if (!midiOutput) {
+        errortext.textContent = errornodevice;
+        openModal(errormodal);
+        return;
+    }
+    try {
+        const data = buildConfig();
+        const sysex = [0xF0, 0x7D, 0x02, ...data, 0xF7]; // Use [0xF0, 0x00, 0x00, 0x7F, 0x01, ...data, 0xF7] for three-byte ID
+        midiOutput.send(sysex);
+    } catch (error) {
+        errortext.textContent = error;
+        openModal(errormodal);
+    }
+}
+
 async function sendSaveConfig() {
     if (!midiOutput) {
         errortext.textContent = errornodevice;
@@ -319,7 +345,8 @@ async function sendSaveConfig() {
         return;
     }
     try {
-        const sysex = [0xF0, 0x7D, 0x03, 0xF7];
+        const data = buildConfig();
+        const sysex = [0xF0, 0x7D, 0x03, ...data, 0xF7]; // Use [0xF0, 0x00, 0x00, 0x7F, 0x01, ...data, 0xF7] for three-byte ID
         midiOutput.send(sysex);
     } catch (error) {
         errortext.textContent = error;
@@ -367,7 +394,7 @@ function handleMidiMessage(event) {
         const versionData = data.slice(3, -1); // Adjust to slice(5, 14) for three-byte ID
         const version = decodeVersion(versionData);
 
-        if (version.version != 0x1) {
+        if (version.version != 0x2) {
             firmwaretext.innerHTML = 'Download the latest PicoKeyer firmware <a target="_blank" href="https://github.com/bontebok/PicoKeyer/releases">\
                 here.</a> Once you have the downloaded the firmware, click the <b>Update Firmware</b> button below.<br><br> \
                 A new drive letter will appear named <b>RPI-RP2</b> containing files INDEX.HTM and INFO_UF2.TXT. Copy the <b>PicoKeyer.uf2</b>\
@@ -387,6 +414,8 @@ function handleMidiMessage(event) {
             document.getElementById('keyMode').value = config.keyMode;
             document.getElementById('pinMode').value = config.pinMode;
             document.getElementById('ledMode').value = config.ledMode;
+            document.getElementById('gpioOutputMode').value = config.gpioOutputMode;
+            document.getElementById('output').value = config.output;
             document.getElementById('normalLED').value = config.normalLED;
             document.getElementById('rgbLED').value = config.rgbLED;
             document.getElementById('ditPaddle').value = config.ditPaddle;
